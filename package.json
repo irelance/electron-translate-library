@@ -1,0 +1,26 @@
+{
+  "name": "electron-translate-library",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "npx webpack --config webpack.rpc.config.js &&npx webpack",
+    "test": "node scripts/test.js"
+  },
+  "keywords": [
+    "electron",
+    "translate"
+  ],
+  "author": "irelance",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^0.19.2",
+    "electron-webview-rpc-framework": "^2.0.0"
+  },
+  "devDependencies": {
+    "electron": "^9.4.4",
+    "url-loader": "^4.1.1",
+    "webpack": "^4.46.0",
+    "webpack-cli": "^4.5.0"
+  }
+}

@@ -1,0 +1,8 @@
+.idea
+package-lock.json
+dist/rpc
+dist/client.js
+dist/index.html
+dist/main.js
+dist/test.js
+node_modules
