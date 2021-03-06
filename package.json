@@ -1,6 +1,6 @@
 {
   "name": "electron-translate-library",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "",
   "main": "dist/index.js",
   "scripts": {
@@ -14,7 +14,7 @@
   "author": "irelance",
   "license": "ISC",
   "dependencies": {
-    "axios": "^0.19.2",
+    "axios": "^0.21.1",
     "electron-webview-rpc-framework": "^2.0.0"
   },
   "devDependencies": {
