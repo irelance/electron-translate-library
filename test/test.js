@@ -41,3 +41,13 @@ let translateTo = "en";
         })
         .catch(e => console.log(translator.name, 'pronounce', 'err', e));
 });
+
+setTimeout(()=>{
+
+    google.batchAutoTranslate([
+        'Converts a URL-encoded byte array into a decoded string using the specified encoding object',
+        'Results from function inside Excel. Purpose. Converts a string <code>that has been</code> encoded for transmission'
+    ],'ja')
+        .then(res=>console.log(res))
+        .catch(e=>console.log(e))
+},200)

@@ -1,4 +1,7 @@
 import axios from "../axios.js";
+import {randomString} from '../common';
+import {updateTKK, updateLogld} from './google.hack';
+
 const log = console.log;
 
 /**
@@ -122,7 +125,12 @@ class GoogleTranslator {
          */
         this.MAX_RETRY = 3;
 
-        // tk需要的密钥
+        /**
+         * hacks
+         */
+        this.translateApiKey = 'AIzaSyBOti4mM-6x9WDnZIjIeyEU21OpBXqWBgw';
+        this.randomXClientData = btoa(randomString(50, ['A', 'a', 1, '!']));
+        this.logld = 'TE_20210224_00';
         this.TKK = [434217, 1534559001];
 
         /**
@@ -133,6 +141,8 @@ class GoogleTranslator {
             this.HOST +
             "translate_a/single?ie=UTF-8&client=webapp&otf=1&ssel=0&tsel=0&kc=5&dt=t&dt=at&dt=bd&dt=ex&dt=md&dt=rw&dt=ss&dt=rm";
         this.TTS_URL = this.HOST + "translate_tts?ie=UTF-8&client=webapp";
+        this.API_HOST = "https://translate.googleapis.com";
+        this.BATCH_TRANSLATE_URL = "/translate_a/t";
 
         /**
          * Language to translator language code.
@@ -148,6 +158,8 @@ class GoogleTranslator {
          * Audio instance.
          */
         this.AUDIO = new Audio();
+
+        updateLogld().then(res => this.logld = res).catch(e => e);
     }
 
     /* eslint-disable */
@@ -170,16 +182,16 @@ class GoogleTranslator {
             128 > l
                 ? (e[f++] = l)
                 : (2048 > l
-                      ? (e[f++] = (l >> 6) | 192)
-                      : (55296 == (l & 64512) &&
-                        g + 1 < a.length &&
-                        56320 == (a.charCodeAt(g + 1) & 64512)
-                            ? ((l = 65536 + ((l & 1023) << 10) + (a.charCodeAt(++g) & 1023)),
-                              (e[f++] = (l >> 18) | 240),
-                              (e[f++] = ((l >> 12) & 63) | 128))
-                            : (e[f++] = (l >> 12) | 224),
-                        (e[f++] = ((l >> 6) & 63) | 128)),
-                  (e[f++] = (l & 63) | 128));
+                ? (e[f++] = (l >> 6) | 192)
+                : (55296 == (l & 64512) &&
+                g + 1 < a.length &&
+                56320 == (a.charCodeAt(g + 1) & 64512)
+                    ? ((l = 65536 + ((l & 1023) << 10) + (a.charCodeAt(++g) & 1023)),
+                        (e[f++] = (l >> 18) | 240),
+                        (e[f++] = ((l >> 12) & 63) | 128))
+                    : (e[f++] = (l >> 12) | 224),
+                    (e[f++] = ((l >> 6) & 63) | 128)),
+                    (e[f++] = (l & 63) | 128));
         }
         a = b;
         for (f = 0; f < e.length; f++) {
@@ -209,6 +221,7 @@ class GoogleTranslator {
         }
         return a;
     }
+
     /* eslint-enable */
 
     /**
@@ -217,22 +230,7 @@ class GoogleTranslator {
      * @returns {Promise<void>} promise
      */
     async updateTKK() {
-        const response = await axios.get(this.HOST);
-
-        let body = response.data;
-        let tkk = (body.match(/TKK=(.*?)\(\)\)'\);/i) || [""])[0]
-            .replace(/\\x([0-9A-Fa-f]{2})/g, "") // remove hex chars
-            .match(/[+-]?\d+/g);
-        if (tkk) {
-            this.TKK[0] = Number(tkk[2]);
-            this.TKK[1] = Number(tkk[0]) + Number(tkk[1]);
-        } else {
-            tkk = body.match(/TKK[=:]['"](\d+?)\.(\d+?)['"]/i);
-            if (tkk) {
-                this.TKK[0] = Number(tkk[1]);
-                this.TKK[1] = Number(tkk[2]);
-            }
-        }
+        await updateTKK().then(res => this.TKK = res).catch(e => e);
     }
 
     /**
@@ -311,7 +309,7 @@ class GoogleTranslator {
                         result.examples = new Array();
                         items.forEach(item =>
                             item.forEach(element =>
-                                result.examples.push({ source: null, target: element[0] })
+                                result.examples.push({source: null, target: element[0]})
                             )
                         );
                         // log("examples: " + JSON.stringify(result.examples));
@@ -492,6 +490,59 @@ class GoogleTranslator {
         if (!this.AUDIO.paused) {
             this.AUDIO.pause();
         }
+    }
+
+    batchAutoTranslate(texts, to, from = 'auto') {
+        from = this.LAN_TO_CODE.get(from);
+        to = this.LAN_TO_CODE.get(to);
+        let body = texts.map(text => 'q=' + encodeURIComponent(text)).join('&');
+        let retryCount = 0;
+        let translateOnce = async () => {
+            let query = `?anno=3&client=te_lib&format=html&v=1.0&key=${this.translateApiKey}&logld=v${this.logld}&sl=${from}&tl=${to}&tc=1&sr=1&tk=${this.generateTK(texts.join(''), this.TKK[0], this.TKK[1])}&mode=1`;
+            /**
+             * Google uses 4xx errors to indicate request parameters invalid, so axios should
+             * not throw error when status code is less than 500.
+             */
+            const response = await axios({
+                url: this.BATCH_TRANSLATE_URL + query,
+                method: 'post',
+                baseURL: this.API_HOST,
+                headers: {
+                    'content-type': 'application/x-www-form-urlencoded',
+                    'x-client-data': this.randomXClientData,
+                    'sec-fetch-site': 'cross-site',
+                    'sec-fetch-mode': 'cors',
+                    'sec-fetch-dest': 'empty',
+                },
+                data: body,
+                validateStatus: status => status < 500
+            });
+
+            if (response.status === 200) {//todo a better way to show result, there is two structure and format: [["x","en"],["y","en"]] ["x","y"] [["<i>x.</i><b>X。</b><i>k</i><b>K。</b>","zh-CN"],["Y","zh-CN"]]
+                return response.data;
+            }
+
+            /**
+             * 429 means token outdated, update token and retry.
+             */
+            if ((response.status === 429 || response.status === 403) && retryCount < this.MAX_RETRY) {
+                retryCount++;
+                return await this.updateTKK().then(translateOnce);
+            }
+            throw {
+                errorType: "API_ERR",
+                errorCode: response.status,
+                errorMsg: "Translate failed.",
+                errorAct: {
+                    api: "google",
+                    action: "translate",
+                    text: text,
+                    from: from,
+                    to: to
+                }
+            };
+        };
+        return translateOnce();
     }
 }
 
